@@ -21,3 +21,9 @@ The vision of this project is to introduce the concept of temporary ownership of
 - Role-based access control (Owner/Admin)
 - Expiry automation using cron-like triggers
 - Frontend dApp integration for real-world usage
+
+
+## Contract Details:
+contract ID:CDZOUG6HT2NWSCE6VACZMGLKQ6VL577VSOKSKAYMZ3PFVZYO2JRWQ7K4
+<img width="1863" height="772" alt="image" src="https://github.com/user-attachments/assets/4ca02751-9016-4f02-9a86-9eb899b96dc0" />
+
