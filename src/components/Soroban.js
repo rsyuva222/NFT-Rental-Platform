@@ -40,25 +40,50 @@ function buildTx(sourceAccount, fnName, values) {
   return builder.setTimeout(30).build();
 }
 
-function parseReturnValue(returnValue) {
-  if (!returnValue) return null;
-  try {
-    const b64 = returnValue.toXDR("base64");
-    if (b64 === "AAAAAA==") {
-      console.log("Return is void");
-      return null;
+async function pollTransaction(hash) {
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    console.log("Poll " + (i + 1) + " for hash:", hash);
+
+    try {
+      const response = await fetch(RPC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "getTransaction",
+          params: { hash },
+        }),
+      });
+
+      const data = await response.json();
+      const result = data.result;
+      console.log("Poll " + (i + 1) + " status:", result?.status);
+
+      if (result?.status === "SUCCESS") {
+        console.log("Transaction SUCCESS");
+        return { status: "SUCCESS", returnValue: result.returnValue || null };
+      }
+
+      if (result?.status === "FAILED") {
+        throw new Error("Transaction FAILED on-chain");
+      }
+
+    } catch (e) {
+      if (e.message === "Transaction FAILED on-chain") throw e;
+      console.log("Poll error (retrying):", e.message);
     }
-    const parsed = scValToNative(returnValue);
-    console.log("Parsed:", parsed);
-    return parsed;
-  } catch (e) {
-    console.log("parseReturnValue treating as void:", e.message);
-    return null;
   }
+
+  throw new Error("Transaction timed out after 60s");
 }
+
+const VOID_FUNCTIONS = ["list_nft", "rent_nft", "end_rental"];
 
 async function contractInt(caller, fnName, values) {
   console.log("contractInt:", fnName);
+
   const sourceAccount = await server.getAccount(caller);
   const tx = buildTx(sourceAccount, fnName, values);
 
@@ -89,28 +114,29 @@ async function contractInt(caller, fnName, values) {
   console.log("Submitted:", send.status, send.hash);
 
   if (send.status === "ERROR") {
+    const errName = send.errorResult?._attributes?.result?._switch?.name;
+    if (errName === "txTooLate") {
+      throw new Error("Transaction expired. Wait 10s and try again.");
+    }
     throw new Error("Submit error: " + JSON.stringify(send.errorResult));
   }
 
-  await new Promise((r) => setTimeout(r, 3000));
+  const result = await pollTransaction(send.hash);
 
-  for (let i = 0; i < 30; i++) {
-    const res = await server.getTransaction(send.hash);
-    console.log("Poll " + (i + 1) + ": " + res.status);
-
-    if (res.status === "SUCCESS") {
-      console.log("SUCCESS! returnValue b64:", res.returnValue && res.returnValue.toXDR("base64"));
-      return parseReturnValue(res.returnValue);
+  if (result.status === "SUCCESS") {
+    if (VOID_FUNCTIONS.includes(fnName)) {
+      console.log("Void function success:", fnName);
+      return null;
     }
-
-    if (res.status === "FAILED") {
-      throw new Error("Transaction FAILED: " + JSON.stringify(res));
+    try {
+      return scValToNative(result.returnValue);
+    } catch (e) {
+      console.log("scValToNative error:", e.message);
+      return null;
     }
-
-    await new Promise((r) => setTimeout(r, 2000));
   }
 
-  throw new Error("Transaction timed out after 60s");
+  return null;
 }
 
 async function simulateCall(caller, fnName, values) {
@@ -129,9 +155,7 @@ async function simulateCall(caller, fnName, values) {
   }
 
   const retval = sim.result && sim.result.retval;
-  if (!retval) {
-    throw new Error("No return value from simulation");
-  }
+  if (!retval) throw new Error("No return value from simulation");
 
   return scValToNative(retval);
 }

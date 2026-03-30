@@ -19,13 +19,15 @@ export default function ConnectWallet({ onConnect }) {
     };
 
     return (
-        <button
-            onClick={handleConnect}
-            disabled={loading}
-            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition disabled:opacity-50"
-        >
-            {loading ? "Connecting..." : "Connect Freighter Wallet"}
-            {error && <p className="text-red-400 text-sm mt-1">{error}</p>}
-        </button>
+        <div className="text-center space-y-4">
+            <button
+                onClick={handleConnect}
+                disabled={loading}
+                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl transition-all duration-200 disabled:opacity-50 text-lg shadow-lg shadow-indigo-900"
+            >
+                {loading ? "Connecting..." : "Connect Freighter Wallet"}
+            </button>
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+        </div>
     );
 }
